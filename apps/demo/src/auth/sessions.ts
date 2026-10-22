@@ -34,3 +34,8 @@ export async function getSessionUser(
   if (!row) return null;
   return { id: row.id, email: row.email };
 }
+
+export async function deleteSession(token: string): Promise<void> {
+  const tokenHash = createHash("sha256").update(token).digest("hex");
+  await pool.query("DELETE FROM sessions WHERE token_hash = $1", [tokenHash]);
+}
