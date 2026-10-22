@@ -4,6 +4,7 @@ import { registerUser, EmailTakenError } from "../auth/register.js";
 import { loginUser, InvalidCredentialsError } from "../auth/login.js";
 import { env } from "../config.js";
 import { requireAuth } from "../middleware/requireAuth.js";
+import { deleteSession } from "../auth/sessions.js";
 
 export const authRouter = express.Router();
 
@@ -16,6 +17,13 @@ const UserSchema = z.object({
     .min(8, { message: "Password must be at least 8 characters" })
     .max(128, { message: "Password must be at most 128 characters" }),
 });
+
+const sessionCookieOptions = {
+  httpOnly: true,
+  secure: env.NODE_ENV === "production",
+  sameSite: "lax" as const,
+  path: "/",
+};
 
 const LoginSchema = z.object({
   email: z.email().max(254),
@@ -47,7 +55,7 @@ authRouter.post("/register", async (req, res) => {
       return res.status(409).json({ error: error.message });
     }
     console.error("Unexpected error during registration:", error);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ error: "sInternal server error" });
   }
 });
 
@@ -70,11 +78,8 @@ authRouter.post("/login", async (req, res) => {
     const { user, session } = await loginUser(email, password);
 
     res.cookie("session_id", session.token, {
-      httpOnly: true,
-      secure: env.NODE_ENV === "production",
-      sameSite: "lax",
+      ...sessionCookieOptions,
       expires: session.expiresAt,
-      path: "/",
     });
 
     res.status(200).json({ user });
@@ -89,4 +94,15 @@ authRouter.post("/login", async (req, res) => {
 
 authRouter.get("/me", requireAuth, (req, res) => {
   res.json({ user: req.user });
+});
+
+authRouter.post("/logout", async (req, res) => {
+  const token = req.cookies.session_id;
+  if (token) {
+    await deleteSession(token);
+  }
+
+  res.clearCookie("session_id", sessionCookieOptions);
+
+  res.status(204).end();
 });
