@@ -19,3 +19,18 @@ export async function createSession(
     expiresAt: result.rows[0].expires_at,
   };
 }
+
+export async function getSessionUser(
+  token: string,
+): Promise<{ id: string; email: string } | null> {
+  const tokenHash = createHash("sha256").update(token).digest("hex");
+
+  const result = await pool.query(
+    `SELECT u.id, u.email FROM sessions s JOIN users u ON s.user_id = u.id WHERE s.token_hash = $1 AND s.expires_at > NOW()`,
+    [tokenHash],
+  );
+
+  const row = result.rows[0];
+  if (!row) return null;
+  return { id: row.id, email: row.email };
+}
