@@ -3,6 +3,7 @@ import { z } from "zod";
 import { registerUser, EmailTakenError } from "../auth/register.js";
 import { loginUser, InvalidCredentialsError } from "../auth/login.js";
 import { env } from "../config.js";
+import { requireAuth } from "../middleware/requireAuth.js";
 
 export const authRouter = express.Router();
 
@@ -84,4 +85,8 @@ authRouter.post("/login", async (req, res) => {
     console.error("Unexpected error during login:", error);
     res.status(500).json({ error: "Internal server error" });
   }
+});
+
+authRouter.get("/me", requireAuth, (req, res) => {
+  res.json({ user: req.user });
 });
