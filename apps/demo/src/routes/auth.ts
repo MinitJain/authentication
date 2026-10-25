@@ -5,6 +5,7 @@ import { loginUser, InvalidCredentialsError } from "../auth/login.js";
 import { env } from "../config.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { deleteSession } from "../auth/sessions.js";
+import { rateLimit } from "express-rate-limit";
 
 export const authRouter = express.Router();
 
@@ -55,11 +56,22 @@ authRouter.post("/register", async (req, res) => {
       return res.status(409).json({ error: error.message });
     }
     console.error("Unexpected error during registration:", error);
-    res.status(500).json({ error: "sInternal server error" });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
-authRouter.post("/login", async (req, res) => {
+// Only failed attempts count, so a user who logs in successfully is never locked out.
+// shortcut: in-memory store is per process, move to a Redis store when running more than one instance.
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  skipSuccessfulRequests: true,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Too many login attempts, try again later" },
+});
+
+authRouter.post("/login", loginLimiter, async (req, res) => {
   try {
     const parsed = LoginSchema.safeParse(req.body);
 
